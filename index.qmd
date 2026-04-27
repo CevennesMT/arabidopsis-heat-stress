@@ -31,6 +31,7 @@ counts <- read.delim("GSE277320/GSE277320_CountsMatrix.txt.gz", row.names = 1)
 
 ## Row {height=60%}
 
+::: {.card title="Project Aims and Data Set Introduction"}
 This project is a Quarto dashboard exploring differential gene expression 
 in *Arabidopsis thaliana* under heat stress conditions, using a publicly 
 available RNA-seq dataset from NCBI's Gene Expression Omnibus (GEO accession: 
@@ -47,36 +48,33 @@ analysis and original visualizations. My analysis focuses on comparing gene
 expression between wild-type plants and a transgenic line (Line 12) at matched 
 time points to identify genes associated with heat tolerance. Below I outline 
 the two main goals driving this exploration.
+:::
 
-## Row Project Goals {height=40%}
+## Row {height=40%}
 
-### Column {width=50%}
-
-#### Differential Expression Analysis
+::: {.card title="Differential Expression Analysis"}
 The primary goal of this dashboard is to identify genes that are 
 differentially expressed between wild-type *Arabidopsis* and the transgenic 
 Line 12 under heat shock conditions. Using DESeq2, I compare gene expression 
 at the 1-hour heat shock time point to identify which genes are significantly 
 up or downregulated in the transgenic line, and what biological processes 
 those genes are involved in.
+:::
 
-### Column {width=50%}
-
-#### Heat Stress Response Across Time
+::: {.card title="Heat Stress Response Across Time"}
 The secondary goal is to explore how gene expression changes across multiple 
 time points within each line. By visualizing expression patterns at 1 hour, 
 5.5 hours, 11 hours, and after recovery, I aim to better understand how 
 *Arabidopsis* adapts its transcriptional response to sustained heat stress, 
 and whether the transgenic line responds differently over time compared to 
 wild-type plants.
+:::
 
-# Page 1 Data Set Up
+# Data Set Up
 
-## Column {width=30%}
-
+## Column {width=40%}
+::: {.card title="Data Visualization"}
 ```{r}
-#| title: Data Visualization
-
 data_sizes <- colSums(counts)
 data_df <- data.frame(
   sample = names(data_sizes),
@@ -91,12 +89,13 @@ ggplot(data_df, aes(x = reorder(sample, total_counts), y = total_counts / 100000
     x = "Sample",
     y = "Total Counts (millions)"
   )
-
 ```
 
-```{r}
-#| title: Investigating Data Across Samples
+Here we start our data exploration with visualizing the total sequencing depth across all 30 samples of *Arabidopsis thaliana*. This tells us something important there is a drop off of data points for some lines and most notably a harsh drop off for two lines specifically WT03D2 and WT03D1.
+:::
 
+::: {.card title="Investigating Data Across Samples"}
+```{r}
 log_counts <- log2(counts+1)
 log_counts_long <- data.frame(
   expression = unlist(log_counts),
@@ -112,10 +111,9 @@ ggplot(log_counts_long, aes(x = expression, color = sample)) +
   )
 
 ```
-
-
+The density plot above shows the distribution of log2-transformed counts across all 30 samples. The large spike near zero reflects the high proportion of genes with zero or close to zero expression which is a expected as most genes are not actively expressed in any given tissue or condition. The close overlap between all 30 sample curves suggests quality data.
+:::
 ```{r}
-#| title: Filtering and DESeq2 Object Set Up
 
 #Creating a metadata table for use with DESeq2.
 sample_info <- data.frame(
@@ -136,8 +134,6 @@ sample_info <- data.frame(
     grepl("22", colnames(counts)) ~ "22hr"
   )
 )
-# printing table out, was feeling table might delete later.
-sample_info
 
 #Using the metadata table to create the DESeq object
 dds <- DESeqDataSetFromMatrix(
@@ -145,26 +141,16 @@ dds <- DESeqDataSetFromMatrix(
   colData   = sample_info,
   design    = ~ line
 )
-dds
-
-#For use to better visualize the data
-nrow(dds)
 
 # filtering the data, drops low sample data from the data set for more robust results.
-# This is important to remove genes we dont have enough data on to draw robust conclusions
-# from, in other words it limits the sample bias, is I beleive the proper term.
+# This is important to remove genes we don't have enough data on to draw robust conclusions
+# from, in other words it limits the sample bias, is I believe the proper term.
 dds <- dds[rowSums(counts(dds)) >= 10, ]
-
-# genes after filtering
-nrow(dds)
 ```
 
-
-## Column {width=70%}
-
+## Column {width=60%}
+::: {.card title="PCA of the DESeq2 Object"}
 ```{r}
-#| title: PCA of the DESeq2 Object
-
 # This normalizes the data so high-count genes don't dominate the PCA
 vsd <- vst(dds, blind = TRUE)
 
@@ -175,11 +161,13 @@ plotPCA(vsd, intgroup = c("line", "condition")) +
     caption = "Shape indicates heat shock vs. recovery condition"
   )
 ```
+Here we are plotting the PCA of all the samples in the dataset after we filtered the data. This shows us the amount of data that each line in heat shock or recovery contributes to the variance in the data.
+:::
 
-# Page 2 Data Exploration and Visualization
+# Data Analysis and Vizualization
 
 ## Column {width=30%}
-
+::: {.card title="Differential Expression Analysis"}
 ```{r}
 # Subset to just 1hr heatshock samples for clean comparison
 samples_subset <- sample_info[
@@ -205,8 +193,19 @@ res <- results(dds_subset, contrast = c("line", "Line12", "WT"))
 
 summary(res)
 ```
+
+To identify genes that respond differently to heat stress between wild-type 
+*Arabidopsis* and the transgenic Line 12, we use DESeq2, a statistical 
+framework designed specifically for RNA sequence count data. Our analysis subsets 
+the data to only the 1 hour heat shock time point which gives us the cleanest 
+treated vs. control comparison. Wild-type is set as the reference group, so 
+fold changes represent expression in Line 12 relative to WT. Genes with an 
+adjusted p-value below 0.05 and a log2 fold change greater than 1 in either 
+direction are considered statistically significant.
+:::
 ## Column {width=70%}
 
+::: {.card title="Volcano Plot: Line 12 vs Wild-Type"}
 ```{r}
 # Convert results to data frame
 res_df <- as.data.frame(res)
@@ -239,11 +238,92 @@ ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj), color = significance)) 
     color    = "Expression"
   )
 ```
+The volcano plot visualizes the results of the differential expression 
+analysis. Each point represents a single gene. The x-axis shows the log2 
+fold change, how much higher or lower a gene's expression is in Line 12 
+compared to wild-type. The y-axis shows statistical significance as 
+-log10 of the adjusted p-value, meaning points higher up are more 
+statistically significant. Red points in the upper right are significantly 
+upregulated in Line 12, blue points in the upper left are significantly 
+downregulated, and grey points did not meet our significance thresholds. 
+The dashed lines mark the fold change (±1) and significance (padj = 0.05) 
+thresholds.
+:::
 
-# Page 3 Results and Conclusions
+# Time Course Analysis
 
-# Resources & Inspirations 
+## Column {width=30%}
+::: {.card title="Top Genes"}
+```{r}
+# Subset to WT and Line12, heat shock only (exclude recovery samples)
+samples_timecourse <- sample_info[
+  sample_info$condition == "HeatShock" &
+  sample_info$line %in% c("WT", "Line12"), ]
 
+counts_timecourse <- counts[, rownames(samples_timecourse)]
+
+dds_time <- DESeqDataSetFromMatrix(
+  countData = counts_timecourse,
+  colData   = samples_timecourse,
+  design    = ~ line + timepoint
+)
+
+dds_time$line <- relevel(dds_time$line, ref = "WT")
+dds_time <- dds_time[rowSums(counts(dds_time)) >= 10, ]
+dds_time <- DESeq(dds_time)
+
+# Variance stabilizing transformation for visualization
+vsd_time <- vst(dds_time, blind = FALSE)
+
+# Take top 40 most significant DE genes from your earlier analysis
+top_genes <- res_df |>
+  filter(significance != "Not Significant") |>
+  arrange(padj) |>
+  head(40) |>
+  pull(gene)
+
+print(top_genes)
+```
+Here we construct a new DESeq2 object using only the WT and Line 12 samples collected during active heat shock, with recovery samples excluded. differing from the volcano plot analysis we incorporate both line and time point as variables, allowing us to capture expression dynamics across 1, 5.5, and 11 hours of heat stress. We then extract the top 40 most statistically significant genes identified in the previous analysis as the basis for our time course visualization.
+:::
+## Column {width=70%}
+::: {.card title="temp"}
+```{r}
+# Extract normalized expression for top genes
+mat <- assay(vsd_time)[top_genes, ]
+
+# Scale each gene (row) so colors show relative expression
+mat_scaled <- t(scale(t(mat)))
+
+# Build annotation for columns showing line and timepoint
+annotation_col <- data.frame(
+  row.names = colnames(mat),
+  Line      = samples_timecourse$line,
+  Timepoint = samples_timecourse$timepoint
+)
+
+pheatmap(
+  mat_scaled,
+  annotation_col  = annotation_col,
+  cluster_cols    = FALSE,   # keep time order meaningful
+  cluster_rows    = TRUE,    # cluster genes by expression pattern
+  show_rownames   = TRUE,
+  show_colnames   = FALSE,
+  color           = colorRampPalette(c("steelblue", "white", "firebrick"))(100),
+  main            = "Top DE Genes: WT vs Line 12 Across Heat Shock Time Points"
+)
+```
+The heatmap above visualizes the expression patterns of the top 40 differentially expressed genes across all heat shock time points in WT and Line 12 plants. Each row represents a gene and each column represents a sample, with red indicating higher relative expression and blue indicating lower relative expression. Genes are clustered by similarity in expression pattern, revealing groups of genes that respond to heat stress in a coordinated manner. By comparing columns across time points and between lines, we can see whether the transcriptional differences between wild-type and Line 12 are consistent throughout heat exposure or change as stress is sustained.
+:::
+
+# Summary & Resources 
+
+## Row {height=70%}
+::: {.card title="Summary and Findings"}
+
+:::
+## Row {height=30%}
+::: {.card title="Resources and Citations"}
 This project utilized resources primarily from two academic papers. If you are interested in anything you see on this dashboard look into the two papers cited below.
 
 1. Cabrales-Orona G, et al. (2026). Grain amaranth genes coding for an RNA-binding and a small, unknown function protein, respectively, enhance thermotolerance when overexpressed in Arabidopsis thaliana. Physiol Mol Biol Plants, 32(1):59–80. PMID: 41675614
@@ -251,3 +331,4 @@ This project utilized resources primarily from two academic papers. If you are i
   NCBI Gene Expression Omnibus (GEO), accession GSE277320. https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE277320
 
 2. Chen Y, Lun AT, Smyth GK. From reads to genes to pathways: differential expression analysis of RNA-Seq experiments using Rsubread and the edgeR quasi-likelihood pipeline. F1000Res. 2016 Jun 20;5:1438. doi: 10.12688/f1000research.8987.2. PMID: 27508061; PMCID: PMC4934518. 
+:::
