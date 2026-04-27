@@ -1,0 +1,212 @@
+---
+title: "Exploration of wild-type and transgenic variants of Arabidopsis thaliana"
+author: "Yves Vernooy"
+format: 
+  dashboard:
+    theme: slate
+    orientation: columns
+embed-resources: true
+---
+
+```{r imports}
+#| message: false
+#| output: false
+
+# Note: Some of these libraries are really annoying to install and
+# need different commands beyond the typical install.packages()
+library(knitr)
+library(dplyr)
+library(tidyverse)
+library(pheatmap)
+library(GEOquery)
+library(ggplot2)
+library(DESeq2)
+
+# read in data
+getGEOSuppFiles("GSE277320")
+counts <- read.delim("GSE277320/GSE277320_CountsMatrix.txt.gz", row.names = 1)
+```
+
+# Introduction
+
+# Page 1 Data Set Up
+
+## Column {width=30%}
+
+```{r}
+#| title: Data Visualization
+
+data_sizes <- colSums(counts)
+data_df <- data.frame(
+  sample = names(data_sizes),
+  total_counts = data_sizes
+)
+
+ggplot(data_df, aes(x = reorder(sample, total_counts), y = total_counts / 1000000)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Data per Sample",
+    x = "Sample",
+    y = "Total Counts (millions)"
+  )
+
+```
+
+```{r}
+#| title: Investigating Data Across Samples
+
+log_counts <- log2(counts+1)
+log_counts_long <- data.frame(
+  expression = unlist(log_counts),
+  sample = rep(colnames(log_counts), each = nrow(log_counts))
+)
+
+ggplot(log_counts_long, aes(x = expression, color = sample)) +
+  geom_density() +
+  labs(
+    title = "Log2 Counts Across Samples",
+    x = "Log2(Count + 1)",
+    y = "Density"
+  )
+
+```
+
+
+```{r}
+#| title: Filtering and DESeq2 Object Set Up
+
+#Creating a metadata table for use with DESeq2.
+sample_info <- data.frame(
+  row.names = colnames(counts),
+  line = case_when(
+    grepl("^WT", colnames(counts))  ~ "WT",
+    grepl("^L12", colnames(counts)) ~ "Line12",
+    grepl("^L13", colnames(counts)) ~ "Line13"
+  ),
+  condition = case_when(
+    grepl("H", colnames(counts)) ~ "HeatShock",
+    grepl("D", colnames(counts)) ~ "Recovery"
+  ),
+  timepoint = case_when(
+    grepl("01", colnames(counts)) ~ "1hr",
+    grepl("05", colnames(counts)) ~ "5.5hr",
+    grepl("11", colnames(counts)) ~ "11hr",
+    grepl("22", colnames(counts)) ~ "22hr"
+  )
+)
+# printing table out, was feeling table might delete later.
+sample_info
+
+#Using the metadata table to create the DESeq object
+dds <- DESeqDataSetFromMatrix(
+  countData = counts,
+  colData   = sample_info,
+  design    = ~ line
+)
+dds
+
+#For use to better visualize the data
+nrow(dds)
+
+# filtering the data, drops low sample data from the data set for more robust results.
+# This is important to remove genes we dont have enough data on to draw robust conclusions
+# from, in other words it limits the sample bias, is I beleive the proper term.
+dds <- dds[rowSums(counts(dds)) >= 10, ]
+
+# genes after filtering
+nrow(dds)
+```
+
+
+## Column {width=70%}
+
+```{r}
+#| title: PCA of the DESeq2 Object
+
+# This normalizes the data so high-count genes don't dominate the PCA
+vsd <- vst(dds, blind = TRUE)
+
+# plot PCA
+plotPCA(vsd, intgroup = c("line", "condition")) +
+  labs(
+    title = "PCA of All Samples",
+    caption = "Shape indicates heat shock vs. recovery condition"
+  )
+```
+
+# Page 2 Data Exploration and Visualization
+
+## Column {width=30%}
+
+```{r}
+# Subset to just 1hr heatshock samples for clean comparison
+samples_subset <- sample_info[
+  sample_info$timepoint == "1hr" &
+  sample_info$condition == "HeatShock" &
+  sample_info$line %in% c("WT", "Line12"), ]
+
+counts_subset <- counts[, rownames(samples_subset)]
+
+dds_subset <- DESeqDataSetFromMatrix(
+  countData = counts_subset,
+  colData   = samples_subset,
+  design    = ~ line
+)
+
+dds_subset$line <- relevel(dds_subset$line, ref = "WT")
+
+# Filter low count genes
+dds_subset <- dds_subset[rowSums(counts(dds_subset)) >= 10, ]
+
+dds_subset <- DESeq(dds_subset)
+res <- results(dds_subset, contrast = c("line", "Line12", "WT"))
+
+summary(res)
+```
+## Column {width=70%}
+
+```{r}
+# Convert results to data frame
+res_df <- as.data.frame(res)
+res_df$gene <- rownames(res_df)
+
+# Classify each gene as up, down, or not significant
+res_df$significance <- case_when(
+  res_df$padj < 0.05 & res_df$log2FoldChange >  1 ~ "Upregulated",
+  res_df$padj < 0.05 & res_df$log2FoldChange < -1 ~ "Downregulated",
+  TRUE ~ "Not Significant"
+)
+
+# Remove rows with NA adjusted p-values (DESeq2 filters some genes automatically)
+res_df <- res_df[!is.na(res_df$padj), ]
+
+# Plot
+ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj), color = significance)) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  scale_color_manual(values = c(
+    "Upregulated"     = "firebrick",
+    "Downregulated"   = "steelblue",
+    "Not Significant" = "grey60"
+  )) +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +
+  labs(
+    title    = "Volcano Plot: Line 12 vs Wild-Type (1hr Heat Shock)",
+    x        = "Log2 Fold Change",
+    y        = "-Log10 Adjusted P-value",
+    color    = "Expression"
+  )
+```
+
+# Page 3 Results and Conclusions
+
+# Resources & Inspirations 
+
+This project utilized resources primarily from two academic papers. If you are interested in anything you see on this dashboard look into the two papers cited below.
+
+1. Cabrales-Orona G, et al. (2026). Grain amaranth genes coding for an RNA-binding and a small, unknown function protein, respectively, enhance thermotolerance when overexpressed in Arabidopsis thaliana. Physiol Mol Biol Plants, 32(1):59–80. PMID: 41675614
+  1.2 The dataset used in the paper:
+  NCBI Gene Expression Omnibus (GEO), accession GSE277320. https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE277320
+
+2. Chen Y, Lun AT, Smyth GK. From reads to genes to pathways: differential expression analysis of RNA-Seq experiments using Rsubread and the edgeR quasi-likelihood pipeline. F1000Res. 2016 Jun 20;5:1438. doi: 10.12688/f1000research.8987.2. PMID: 27508061; PMCID: PMC4934518. 
