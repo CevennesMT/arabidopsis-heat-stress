@@ -3,7 +3,7 @@ title: "Exploration of wild-type and transgenic variants of Arabidopsis Thaliana
 author: "Yves Vernooy"
 format: 
   dashboard:
-    theme: slate
+    theme: minty
     orientation: columns
 embed-resources: true
 ---
@@ -21,6 +21,7 @@ library(pheatmap)
 library(GEOquery)
 library(ggplot2)
 library(DESeq2)
+library(UsingR)
 
 # read in data
 getGEOSuppFiles("GSE277320")
@@ -32,6 +33,10 @@ counts <- read.delim("GSE277320/GSE277320_CountsMatrix.txt.gz", row.names = 1)
 ## Row {height=60%}
 
 ::: {.card title="Project Aims and Data Set Introduction"}
+```{r}
+headtail(counts, k = 3)
+```
+
 This project is a Quarto dashboard exploring differential gene expression 
 in *Arabidopsis thaliana* under heat stress conditions, using a publicly 
 available RNA-seq dataset from NCBI's Gene Expression Omnibus (GEO accession: 
@@ -72,7 +77,7 @@ wild-type plants.
 
 # Data Set Up
 
-## Column {width=40%}
+## Column {.tabset}
 ::: {.card title="Data Visualization"}
 ```{r}
 data_sizes <- colSums(counts)
@@ -286,8 +291,8 @@ print(top_genes)
 ```
 Here we construct a new DESeq2 object using only the WT and Line 12 samples collected during active heat shock, with recovery samples excluded. differing from the volcano plot analysis we incorporate both line and time point as variables, allowing us to capture expression dynamics across 1, 5.5, and 11 hours of heat stress. We then extract the top 40 most statistically significant genes identified in the previous analysis as the basis for our time course visualization.
 :::
-## Column {width=70%}
-::: {.card title="temp"}
+## Column {width=60%}
+::: {.card title="Gene Heatmap"}
 ```{r}
 # Extract normalized expression for top genes
 mat <- assay(vsd_time)[top_genes, ]
@@ -318,11 +323,18 @@ The heatmap above visualizes the expression patterns of the top 40 differentiall
 
 # Summary & Resources 
 
-## Row {height=70%}
+## Column {width=40%}
 ::: {.card title="Summary and Findings"}
+Throughout this dashboard three major visualizations help understand the data and answer the project questions. Firstly, the PCA analysis revealed that recovery samples separate quite far from heat shock samples along PC1, 59% of total variance, and PC2, 20% of total variance, indicating that the transcriptional response to heat stress is substantially reversed during recovery. Heat shock samples from all three lines clustered more closely together, suggesting a shared core heat stress response across genotypes.\
+\
+Secondly, the volcano plot analysis comparing Line 12 to wild-type at the 1 hour time point revealed that significantly more genes were upregulated in Line 12 than downregulated. This suggests the amaranth derived transgene primarily functions by activating rather than suppressing gene expression under heat stress. Several genes showed exceptionally high statistical significance, with adjusted p-values approaching 10^-50, pointing to robust and reproducible transcriptional differences between the lines.\
+\
+Lastly, the time course heatmap confirmed that many of these transcriptional differences persist across sustained heat exposure. Two broad patterns emerged in Line 12, in one pattern a group of genes shows strong early upregulation that diminishes over time. In the other pattern a larger cluster of genes remains consistently highly expressed throughout all heat shock time points. WT samples showed consistently lower expression of these genes, supporting the conclusion that the transgene imparts a substantially different and more robust transcriptional heat stress response.\
+\
+Together these findings are consistent with the conclusions of Cabrales-Orona et al. (2026) and suggest that the amaranth RNA-binding protein enhances thermotolerance in Arabidopsis by broadly activating heat responsive gene networks.
 
 :::
-## Row {height=30%}
+## Column {width=30%}
 ::: {.card title="Resources and Citations"}
 This project utilized resources primarily from two academic papers. If you are interested in anything you see on this dashboard look into the two papers cited below.
 
